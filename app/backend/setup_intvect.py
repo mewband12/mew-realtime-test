@@ -24,6 +24,7 @@ from azure.search.documents.indexes.models import (
     SearchIndexerDataContainer,
     SearchIndexerDataSourceConnection,
     SearchIndexerDataSourceType,
+    SearchIndexerDataUserAssignedIdentity,
     SearchIndexerIndexProjections,
     SearchIndexerIndexProjectionSelector,
     SearchIndexerIndexProjectionsParameters,
@@ -59,7 +60,7 @@ def load_azd_env():
     load_dotenv(env_file_path, override=True)
 
 
-def setup_index(azure_credential, index_name, azure_search_endpoint, azure_storage_connection_string, azure_storage_container, azure_openai_embedding_endpoint, azure_openai_embedding_deployment, azure_openai_embedding_model, azure_openai_embeddings_dimensions):
+def setup_index(azure_credential, index_name, azure_search_endpoint, azure_storage_endpoint, azure_storage_container, azure_openai_embedding_endpoint, azure_openai_embedding_deployment, azure_openai_embedding_model, azure_openai_embeddings_dimensions):
     index_client = SearchIndexClient(azure_search_endpoint, azure_credential)
     indexer_client = SearchIndexerClient(azure_search_endpoint, azure_credential)
 
@@ -68,12 +69,15 @@ def setup_index(azure_credential, index_name, azure_search_endpoint, azure_stora
         logger.info(f"Data source connection {index_name} already exists, not re-creating")
     else:
         logger.info(f"Creating data source connection: {index_name}")
+        # Use managed identity instead of connection string for authentication
+        # Connection string should be in the format of the storage endpoint URL
         indexer_client.create_data_source_connection(
             data_source_connection=SearchIndexerDataSourceConnection(
                 name=index_name, 
                 type=SearchIndexerDataSourceType.AZURE_BLOB,
-                connection_string=azure_storage_connection_string,
-                container=SearchIndexerDataContainer(name=azure_storage_container)))
+                connection_string=azure_storage_endpoint,
+                container=SearchIndexerDataContainer(name=azure_storage_container),
+                identity=SearchIndexerDataUserAssignedIdentity()))
 
     index_names = [index.name for index in index_client.list_indexes()]
     if index_name in index_names:
@@ -238,7 +242,6 @@ if __name__ == "__main__":
     EMBEDDINGS_DIMENSIONS = 3072
     AZURE_SEARCH_ENDPOINT = os.environ["AZURE_SEARCH_ENDPOINT"]
     AZURE_STORAGE_ENDPOINT = os.environ["AZURE_STORAGE_ENDPOINT"]
-    AZURE_STORAGE_CONNECTION_STRING = os.environ["AZURE_STORAGE_CONNECTION_STRING"]
     AZURE_STORAGE_CONTAINER = os.environ["AZURE_STORAGE_CONTAINER"]
 
     azure_credential = AzureDeveloperCliCredential(tenant_id=os.environ["AZURE_TENANT_ID"], process_timeout=60)
@@ -246,7 +249,7 @@ if __name__ == "__main__":
     setup_index(azure_credential,
         index_name=AZURE_SEARCH_INDEX, 
         azure_search_endpoint=AZURE_SEARCH_ENDPOINT,
-        azure_storage_connection_string=AZURE_STORAGE_CONNECTION_STRING,
+        azure_storage_endpoint=AZURE_STORAGE_ENDPOINT,
         azure_storage_container=AZURE_STORAGE_CONTAINER,
         azure_openai_embedding_endpoint=AZURE_OPENAI_EMBEDDING_ENDPOINT,
         azure_openai_embedding_deployment=AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
